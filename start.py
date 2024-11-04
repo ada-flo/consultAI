@@ -139,41 +139,55 @@ def natural_sort_key(s):
     return [int(text) if text.isdigit() else text for text in re.split(r'(\d+)', s)]
 
 def main():
-    st.set_page_config("청약 FAQ 챗봇", layout = "wide")
-    left_column, right_column = st.columns([1,1])
-    
+    st.set_page_config("청약 FAQ 챗봇", layout="wide")
+
+    left_column, right_column = st.columns([1, 1])
     with left_column:
         st.header("청약 FAQ 챗봇")
+
         pdf_doc = st.file_uploader("PDF Uploader", type="pdf")
-        button = st.button("PDF 업로하기")
+        button =  st.button("PDF 업로드하기")
         if pdf_doc and button:
-            with st.spinner("PDF 문서 저장중"):
-                st.text("여기까지 구현됨")
+            with st.spinner("PDF문서 저장중"):
                 pdf_path = save_uploadedfile(pdf_doc)
-                pdf_document = pdf_to_documents(pdf_path)
+                pdf_document = pdf_to_documents(pdf_path)  #
                 smaller_documents = chunk_documents(pdf_document)
                 save_to_vector_store(smaller_documents)
+            # (3단계) PDF를 이미지로 변환해서 세션 상태로 임시 저장
             with st.spinner("PDF 페이지를 이미지로 변환중"):
                 images = convert_pdf_to_images(pdf_path)
                 st.session_state.images = images
-        
-        user_question = st.text_input("PDF 문서에 대해서 질문해 주세요", placeholder = "초보운전자 관련 해외정책 3가지가 무엇인가요?")
+
+        user_question = st.text_input("PDF 문서에 대해서 질문해 주세요",
+                                        placeholder="무순위 청약 시에도 부부 중복신청이 가능한가요?")
+
         if user_question:
             response, context = process_question(user_question)
-            st.text(response)
+            st.write(response)
+            i = 0 
             for document in context:
                 with st.expander("관련 문서"):
-                    st.text(document.page_content)
+                    st.write(document.page_content)
                     file_path = document.metadata.get('source', '')
-                    page_number = document.metadata.get('page',0) + 1
-                    button_key = f"link_{file_path}_{page_number}"
-                    reference_button = st.button(f"{os.path.basename(file_path)} pg.{page_number}", key=button_key)
+                    page_number = document.metadata.get('page', 0) + 1
+                    button_key =f"link_{file_path}_{page_number}_{i}"
+                    reference_button = st.button(f"🔎 {os.path.basename(file_path)} pg.{page_number}", key=button_key)
                     if reference_button:
                         st.session_state.page_number = str(page_number)
-    
+                    i = i + 1
     with right_column:
+        # page_number 호출
         page_number = st.session_state.get('page_number')
-        st.text(page_number)
-    
+        if page_number:
+            page_number = int(page_number)
+            image_folder = "pdf_이미지"
+            images = sorted(os.listdir(image_folder), key=natural_sort_key)
+            print(images)
+            image_paths = [os.path.join(image_folder, image) for image in images]
+            print(page_number)
+            print(image_paths[page_number - 1])
+            display_pdf_page(image_paths[page_number - 1], page_number)
+
+
 if __name__ == "__main__":
     main()
