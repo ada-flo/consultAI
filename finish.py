@@ -175,18 +175,7 @@ def get_market_news(ticker: str, api_key: str) -> dict:
     }
     response = requests.get(base_url, params=params)
     data = response.json()
-
-    # Check if the response contains valid news data
-    if data and "feed" in data:
-        # Extract summaries from each article in the feed
-        summaries = [article["summary"] for article in data["feed"] if "summary" in article]
-        
-        # Convert the summaries list to a JSON string
-        summaries_json = json.dumps(summaries, ensure_ascii=False, indent=2)
-        return summaries_json
-    else:
-        st.error("Failed to fetch market news or invalid API response.")
-        return {}
+    return data
 
 def main():
     st.set_page_config("SoftlyAI 챗봇", layout="wide")
