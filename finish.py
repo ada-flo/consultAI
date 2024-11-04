@@ -1,4 +1,4 @@
-# openai GPT 모델 모듈 불러오기
+# openai GPT 모델 모듈 불러오기 
 import openai
 from openai.types import ChatModel
 from openai.types.chat import ChatCompletion
@@ -31,7 +31,7 @@ from dotenv import load_dotenv,dotenv_values
 load_dotenv()
 
 
-############################### 1단계 : PDF 문서를 벡터DB에 저장하는 함수들 ##########################
+############################### 1단계 : json 문서를 벡터DB에 저장하는 함수들 ##########################
 
 ## 1: JSON 데이터를 Document로 변환
 def json_to_documents(json_data: dict) -> List[Document]:
@@ -237,3 +237,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
