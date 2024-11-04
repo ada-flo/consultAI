@@ -36,18 +36,15 @@ load_dotenv()
 ## 1: JSON 데이터를 Document로 변환
 def json_to_documents(json_data: dict) -> List[Document]:
     documents = []
-    # Assuming the JSON is structured with data you want to convert into documents
-    if isinstance(json_data, list):
-        for item in json_data:
-            if 'content' in item:
-                doc = Document(page_content=item['content'], metadata={"source": "API"})
+    # Check if 'news' key is present in the JSON data and iterate over the list
+    if 'news' in json_data and isinstance(json_data['news'], list):
+        for entry in json_data['news']:
+            if 'title' in entry and 'summary' in entry:
+                # Concatenating 'title' and 'summary' as the page content
+                content = f"Title: {entry['title']}\nSummary: {entry['summary']}"
+                doc = Document(page_content=content, metadata={"source": "API"})
                 documents.append(doc)
-    else:
-        # Handling a single JSON object if it's not an array
-        for key, value in json_data.items():
-            if isinstance(value, str):
-                doc = Document(page_content=value, metadata={"key": key, "source": "API"})
-                documents.append(doc)
+
     return documents
 
 ## 2: Document를 더 작은 document로 변환
@@ -122,6 +119,20 @@ def extract_company_name(user_question):
     company_name = response.choices[0].message.content.strip()
     return company_name
 
+## Use GPT to extract the company name
+def translate(user_question):
+    openai.api_key = st.secrets["OPENAI_API_KEY"]  # Replace with your OpenAI API key
+    
+    response = openai.chat.completions.create(
+        model = "gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": f"Write company overview in Korean: '{user_question}'"}
+        ],
+        temperature=0
+    )
+    overview = response.choices[0].message.content.strip()
+    return overview
+
 ############################### Alpha Vantage API 관련 함수 ##########################
 
 def get_alpha_vantage_data(symbol: str, api_key: str) -> pd.DataFrame:
@@ -166,7 +177,7 @@ def get_company_overview(symbol: str, api_key: str) -> dict:
         return {}
 
 def get_market_news(ticker: str, api_key: str) -> dict:
-    """Fetch market news related to a given company ticker and topic from Alpha Vantage API."""
+    """Fetch market news related to a given company ticker and return the first 5 titles and summaries."""
     base_url = "https://www.alphavantage.co/query"
     params = {
         "function": "NEWS_SENTIMENT",
@@ -175,7 +186,16 @@ def get_market_news(ticker: str, api_key: str) -> dict:
     }
     response = requests.get(base_url, params=params)
     data = response.json()
-    return data
+    
+    extracted_data = [
+        {
+            "title": article.get("title", "No Title"),
+            "summary": article.get("summary", "No Summary")
+        }
+        for article in data.get("feed", []) # Limit to the first 5 articles
+    ]
+
+    return {"news": extracted_data}
 
 def main():
     st.set_page_config("SoftlyAI 챗봇", layout="wide")
@@ -192,6 +212,22 @@ def main():
         api_key = st.secrets["ALPHAVANTAGE_API_KEY"]  # Store API key in Streamlit secrets for security
         
         if company_ticker:
+            news_data = get_market_news(company_ticker, api_key)
+            
+            json_doc = json_to_documents(news_data)
+            smaller_documents = chunk_documents(json_doc)
+            save_to_vector_store(smaller_documents)
+            
+            response, context = process_question(user_question)
+            st.write(response)
+            for document in context:
+                with st.expander("관련 문서"):
+                    st.write(document.page_content)
+            
+            st.subheader("회사 개요")
+            overview = translate(company_ticker)
+            st.write(overview)
+            
             with st.spinner("데이터를 불러오는 중..."):
                 df = get_alpha_vantage_data(company_ticker, api_key)
                 if not df.empty:
@@ -200,30 +236,8 @@ def main():
                     # 시각화
                     fig = px.line(df, x=df.index, y="Close", title=f"{company_ticker} 주가 (종가)")
                     st.plotly_chart(fig)
-        
-        company_overview = get_company_overview(company_ticker, api_key)
-        news_data = get_market_news(company_ticker, api_key)
-        st.text(news_data)
-        
-        json_doc = json_to_documents(news_data)
-        smaller_documents = chunk_documents(json_doc)
-        save_to_vector_store(smaller_documents)
-        
-        response, context = process_question(user_question)
-        st.write(response)
-        i = 0 
-        for document in context:
-            with st.expander("관련 문서"):
-                st.write(document.page_content)
-                file_path = document.metadata.get('source', '')
-                page_number = document.metadata.get('page', 0) + 1
-                button_key =f"link_{file_path}_{page_number}_{i}"
-                reference_button = st.button(f"🔎 {os.path.basename(file_path)} pg.{page_number}", key=button_key)
-                if reference_button:
-                    st.session_state.page_number = str(page_number)
-                i = i + 1
+                 
 
 
 if __name__ == "__main__":
     main()
-
