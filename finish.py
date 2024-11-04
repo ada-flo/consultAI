@@ -1,4 +1,4 @@
-# openai GPT 모델 모듈 불러오
+# openai GPT 모델 모듈 불러오기
 import openai
 from openai.types import ChatModel
 from openai.types.chat import ChatCompletion
